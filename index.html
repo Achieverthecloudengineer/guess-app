@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guess The Number</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Inter font and background */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f9; /* Light, subtle background */
+        }
+        
+        /* Message box style for clear feedback */
+        #message-box {
+            min-height: 4rem; /* Ensure stability and prevent CLS */
+        }
+        
+        /* Game specific styling for a modern, centered feel */
+        .game-card {
+            max-width: 420px;
+            width: 90%;
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .game-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        /* Custom style for the input to make it feel more tactile */
+        #guess-input:focus {
+            border-color: #4f46e5; /* Indigo-600 */
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4);
+        }
+
+        /* Basic modal backdrop for the custom alert/message box */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Guessing Game Card -->
+    <div class="game-card bg-white p-8 rounded-2xl shadow-2xl border border-gray-100 flex flex-col items-center">
+        <h1 class="text-4xl font-extrabold text-gray-900 mb-2">
+            Guess It!
+        </h1>
+        <p class="text-sm text-gray-500 mb-6 text-center">
+            I'm thinking of a number between 1 and 100.
+        </p>
+
+        <!-- Current Attempts -->
+        <p class="text-md font-semibold text-indigo-600 mb-6">
+            Attempts: <span id="attempts-count">0</span>
+        </p>
+
+        <!-- Input and Button Group -->
+        <div class="flex space-x-3 w-full mb-6">
+            <input 
+                type="number" 
+                id="guess-input" 
+                placeholder="Enter your guess" 
+                min="1" 
+                max="100" 
+                class="flex-grow p-3 border-2 border-gray-300 rounded-lg text-lg font-medium focus:outline-none"
+            />
+            <button 
+                id="guess-button" 
+                class="px-5 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                Guess
+            </button>
+        </div>
+
+        <!-- Feedback Message Box -->
+        <div id="message-box" class="w-full text-center p-4 rounded-lg bg-gray-50 text-gray-700 font-medium mb-6 transition-all duration-300">
+            Start guessing!
+        </div>
+        
+        <!-- New Game Button -->
+        <button 
+            id="new-game-button" 
+            class="w-full py-3 border border-indigo-200 text-indigo-600 font-semibold rounded-lg hover:bg-indigo-50 transition duration-150"
+        >
+            New Game
+        </button>
+    </div>
+
+    <!-- Custom Modal for Game Over/Alerts (Hidden by default) -->
+    <div id="game-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop transition-opacity duration-300">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
+            <h3 id="modal-title" class="text-2xl font-bold mb-3 text-gray-900"></h3>
+            <p id="modal-body" class="text-gray-600 mb-6"></p>
+            <button id="modal-close-button" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">
+                Got it!
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Game Variables ---
+        let targetNumber;
+        let attempts;
+        let gameActive = true;
+
+        // --- DOM Elements ---
+        const inputElement = document.getElementById('guess-input');
+        const guessButton = document.getElementById('guess-button');
+        const newGameButton = document.getElementById('new-game-button');
+        const messageBox = document.getElementById('message-box');
+        const attemptsCount = document.getElementById('attempts-count');
+        
+        // Modal Elements (used instead of alert/confirm)
+        const modal = document.getElementById('game-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const modalCloseButton = document.getElementById('modal-close-button');
+
+
+        /**
+         * Initializes a new game.
+         */
+        function initializeGame() {
+            // Generate a random number between 1 and 100 (inclusive)
+            targetNumber = Math.floor(Math.random() * 100) + 1;
+            attempts = 0;
+            gameActive = true;
+            
+            // Reset UI elements
+            inputElement.value = '';
+            inputElement.disabled = false;
+            guessButton.disabled = false;
+            messageBox.textContent = "Take your first guess!";
+            messageBox.className = "w-full text-center p-4 rounded-lg bg-gray-50 text-gray-700 font-medium mb-6 transition-all duration-300";
+            attemptsCount.textContent = attempts;
+            
+            console.log("New game started. Target number is: " + targetNumber); // Keep this for debugging/testing
+        }
+
+        /**
+         * Displays a custom modal message.
+         * @param {string} title The title of the message.
+         * @param {string} body The main body text.
+         */
+        function showModal(title, body) {
+            modalTitle.textContent = title;
+            modalBody.textContent = body;
+            modal.classList.remove('hidden');
+        }
+
+        /**
+         * Hides the custom modal.
+         */
+        function hideModal() {
+            modal.classList.add('hidden');
+        }
+        
+        /**
+         * Handles the user's guess submission.
+         */
+        function checkGuess() {
+            if (!gameActive) {
+                showModal("Game Over", "The game has finished. Click 'New Game' to play again!");
+                return;
+            }
+
+            const guess = parseInt(inputElement.value);
+
+            // Input validation
+            if (isNaN(guess) || guess < 1 || guess > 100) {
+                showModal("Invalid Input", "Please enter a valid number between 1 and 100.");
+                inputElement.value = '';
+                return;
+            }
+
+            attempts++;
+            attemptsCount.textContent = attempts;
+            inputElement.value = ''; // Clear input field
+
+            if (guess === targetNumber) {
+                // WIN CONDITION
+                messageBox.textContent = `🎉 Correct! You guessed the number ${targetNumber} in ${attempts} attempts!`;
+                messageBox.className = "w-full text-center p-4 rounded-lg bg-green-100 text-green-700 font-bold mb-6 transition-all duration-300";
+                inputElement.disabled = true;
+                guessButton.disabled = true;
+                gameActive = false;
+                showModal("You Won!", `It took you ${attempts} attempts to guess the number ${targetNumber}. Well done!`);
+
+            } else {
+                // HINT
+                let feedbackText;
+                let bgColorClass = 'bg-yellow-100 text-yellow-700';
+
+                if (guess < targetNumber) {
+                    feedbackText = "Too low! Try a higher number.";
+                } else {
+                    feedbackText = "Too high! Try a lower number.";
+                }
+
+                messageBox.textContent = feedbackText;
+                messageBox.className = `w-full text-center p-4 rounded-lg ${bgColorClass} font-medium mb-6 transition-all duration-300`;
+            }
+        }
+
+        // --- Event Listeners ---
+
+        // 1. Guess Button Click
+        guessButton.addEventListener('click', checkGuess);
+
+        // 2. Input Enter Key Press
+        inputElement.addEventListener('keypress', function(event) {
+            // Check if the key pressed is 'Enter' (key code 13 or key name 'Enter')
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent default form submission behavior
+                checkGuess();
+            }
+        });
+
+        // 3. New Game Button Click
+        newGameButton.addEventListener('click', initializeGame);
+
+        // 4. Modal Close Button
+        modalCloseButton.addEventListener('click', hideModal);
+
+
+        // --- Initialization ---
+        window.onload = initializeGame;
+
+    </script>
+
+</body>
+</html>
